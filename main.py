@@ -1,41 +1,8 @@
-import inline
-import pandas as pd
-import numpy as np
-import pickle   # сохранение модели
-
-import matplotlib
-#import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-#%matplotlib inline
+import numpy as np
+import seaborn as sns
+import pandas as pd
 
-# 2. Разделение датасета
-from sklearn.model_selection import train_test_split, KFold, GridSearchCV
-
-# 3. Модели
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeRegressor, plot_tree
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.preprocessing import StandardScaler
-
-# 4. Метрики качества
-from sklearn.metrics import mean_squared_error as mse, r2_score as r2
-
-# 5. Для визуализации внешних картинок в ноутбуке
-from IPython.display import Image
-
-
-import matplotlib.image as img
-from scipy.stats import mode
-import datetime
-#%matplotlib inline
-
-from datetime import datetime
-
-import warnings
-warnings.filterwarnings('ignore')
 
 def task1():
     x = 1.6453
@@ -72,53 +39,135 @@ def task2():
 
 
 def task3():
-    df = pd.read_csv("test.csv")
-    print(df.shape)
-    print(df.dtypes)
-    # отбор числовых колонок
-    df_numeric = df.select_dtypes(include=[np.number])
-    numeric_cols = df_numeric.columns.values
-    print(numeric_cols)
-
-    # отбор нечисловых колонок
-    df_non_numeric = df.select_dtypes(exclude=[np.number])
-    non_numeric_cols = df_non_numeric.columns.values
-    print(non_numeric_cols)
-
-    cols = df.columns[:19]  # первые 30 колонок
-    # определяем цвета
-    # желтый - пропущенные данные, синий - не пропущенные
-    colours = ['#6900C6', '#ff0000']
-    sns.heatmap(df[cols].isnull(), cmap=sns.color_palette(colours))
-
-    for col in df.columns:
-        missing = df[col].isnull()
-        num_missing = np.sum(missing)
-
-        if num_missing > 0:
-            print('created missing indicator for: {}'.format(col))
-            df['{}_ismissing'.format(col)] = missing
-
-    # затем на основе индикатора строим гистограмму
-    ismissing_cols = [col for col in df.columns if 'ismissing' in col]
-    df['num_missing'] = df[ismissing_cols].sum(axis=1)
-
-    df['num_missing'].value_counts().reset_index().sort_values(by='index').plot.bar(x='index', y='num_missing')
-
-    print("Процент пропусков:")
-    for col in df.columns:
-        pct_missing = np.mean(df[col].isnull())
-        print('{} - {}%'.format(col, round(pct_missing * 100)))
-    df["LifeSquare"].hist(bins=100)
-
+    dataset = pd.read_csv("test.csv")
+    df = dataset.sample(n=1000)
     # посмотрим описательные статистики
     # аномальные минимальные и максимальные значения у признаков Rooms, Square, LifeSquare, KitchenSquare
     # также видны пропуски для признаков LifeSquare и Healthcare_1
-    df.describe()
+    print("Общие сведения:\n", df.describe().to_string())
+    print("Размерность датасета (строки, столбцы):", df.shape)
+    print("Типы данных столбцов (название, тип):\n", df.dtypes, sep="")
+
+    print("\nРабота с пропусками значений.")
+    cols = df.columns[:19]
+    colours = ["#6900C6", "#ff0000"]
+    sns.heatmap(df[cols].isnull(), cmap=sns.color_palette(colours))
+    plt.title("Тепловая карта")
+    plt.show()
+
+    print("\nПроцентный список пропущенных данных:")
+    for column in df.columns:
+        percent_missing = np.mean(df[column].isnull())
+        print("{} - {}%".format(column, round(percent_missing * 100)))
+    digital_features = df.select_dtypes(exclude=["object"])
+    digital_features.hist(figsize=(16, 12), bins=30)
+    plt.title("Данные в графическом представлении")
+    plt.show()
+
+    # рисунок 3, ящик с усами
+    plt.figure(figsize=(16, 8))
+    sns.boxplot(data=df[["Square", "LifeSquare", "KitchenSquare"]], orient="h")
+    plt.xscale("symlog")
+    plt.xlim(left=-1)
+    plt.title("Ящик с усами")
+    plt.show()
+
+    # гистограмма
+    sns.histplot(data=df["Square"])
+    plt.title("Гистограмма Square")
+    plt.show()
+
+    sns.histplot(data=df["LifeSquare"])
+    plt.title("Гистограмма LifeSquare")
+    plt.show()
+
+    sns.histplot(data=df["KitchenSquare"])
+    plt.title("Гистограмма KitchenSquare")
+    plt.show()
+
+    # заполнение пропусков
+    df = df.sort_values(by="Square")
+    df.LifeSquare.fillna(method="ffill", inplace=True)
+    df = df.sort_values(by="DistrictId")
+    df.Healthcare_1.fillna(method="ffill", inplace=True)
+    df = df.sort_values(by="Id")
+
+    # заменим аномальные значения количества комнат на медианы
+    print("\nЗаменим аномальные значения количества комнат на медианы:")
+    df.loc[df["Rooms"].isin([0, 10, 17, 19]), "Rooms"] = int(df["Rooms"].median())
+    print(df.describe().to_string())
+
+    # заменим аномальные значения площадей на медианы
+    print("\nЗаменим аномальные значения площадей на медианы:")
+    df.loc[(df["LifeSquare"] > 80) | (df["LifeSquare"] < 5), "LifeSquare"] = df["LifeSquare"].median()
+    df.loc[(df["Square"] > 100) | (df["Square"] < 10), "Square"] = df["Square"].median()
+    df.loc[(df["KitchenSquare"] > 15) | (df["KitchenSquare"] < 1), "KitchenSquare"] = df["KitchenSquare"].median()
+    print(df.describe().to_string())
+
+    digital_features = df.select_dtypes(exclude=["object"])
+    digital_features.hist(figsize=(16, 12), bins=30)
+    plt.title("Данные в графическом представлении")
+    plt.show()
+
+    print("\nКоличество квартир по комнатам:")
+    print(df["Rooms"].value_counts().rename_axis("Rooms").reset_index(name="Amount"))
+
+    new_df = df[["DistrictId", "Rooms"]]
+    new_df["Rooms1"] = 1
+
+    table = pd.pivot_table(new_df, index="DistrictId", values="Rooms1", columns="Rooms", fill_value=0, aggfunc=np.sum)
+    print(table.to_string())
+
+    df.to_csv("surname.csv", index=False)
 
 
 def task4():
-    return
+    arr = []
+    x = 3.567
+    interval = (-5, 12)
+    delta_a = 0.5
+
+    arguments = np.arange(interval[0], interval[1], delta_a)
+    for a in arguments:
+        arr.append(np.power((1. / np.tan(x)), 3) + 2.24 * a * x)
+    print(arr)
+    print("Максимальный элемент списка:", np.max(arr))
+    print("Минимальный элемент списка:", np.min(arr))
+    print("Среднее значение списка:", np.mean(arr))
+    print("Длина списка:", np.size(arr))
+
+    sorted_array = np.sort(arr)
+    print("Отсортированный по возрастанию список:", sorted_array)
+
+    plt.plot(arguments, arr, "g", marker="o")
+    plt.plot(interval, np.full(2, np.mean(arr)), "r")
+    plt.ylabel("Значение")
+    plt.xlabel("Аргумент")
+    plt.show()
+
+    interval_x = (0, 3)
+    delta_x = 0.1
+    interval_y = (3, 9)
+    delta_y = 0.2
+
+    arguments_x = np.arange(interval_x[0], interval_x[1], delta_x)
+    arguments_y = np.arange(interval_y[0], interval_y[1], delta_y)
+    val_1 = np.array([x ** 0.25 + y ** 0.25 for x, y in zip(arguments_x, arguments_y)])
+    val_2 = np.array([x ** 2 - y ** 2 for x, y in zip(arguments_x, arguments_y)])
+    val_3 = np.array([2 * x + 3 * y for x, y in zip(arguments_x, arguments_y)])
+    val_4 = np.array([x ** 2 + y ** 2 for x, y in zip(arguments_x, arguments_y)])
+    val_5 = np.array([2 + 2 * x + 2 * y - x ** 2 - y ** 2 for x, y in zip(arguments_x, arguments_y)])
+    ax = plt.axes(projection="3d")
+    ax.plot3D(arguments_x, arguments_y, val_1)
+    ax.plot3D(arguments_x, arguments_y, val_2)
+    ax.plot3D(arguments_x, arguments_y, val_3)
+    ax.plot3D(arguments_x, arguments_y, val_4)
+    ax.plot3D(arguments_x, arguments_y, val_5)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+    plt.title("3D-график")
+    plt.show()
 
 
 def menu():
@@ -126,8 +175,8 @@ def menu():
         print("Список заданий:\n "
               "1. Вычисление выражения\n "
               "2. Нахождение оценки уровня регрессии\n "
-              "3. Графики\n "
-              "4. Pandas\n "
+              "3. Pandas\n "
+              "4. Графики\n "
               "0. Выход")
         variant = input("Выберите задание: ")
         try:
